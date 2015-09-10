@@ -1,0 +1,155 @@
+#!/bin/bash
+
+printhelp() {
+    echo "sataeject [OPTIONS] DRIVE"
+    echo "Eject SCSI/SATA/SAS drive for safe remove"
+    echo ""
+    echo "Options:"
+    echo "  -h   --help     Show this help"
+    echo "  -f   --force    Force ejecting even when volumes are mounted"
+    echo "  -v   --verbose  Be verbose"
+    echo "  -u   --unmount  Automatically unmount mounted volumes"
+    echo "       --version  Show version"
+    echo "You can not combine options like -fvu (yet)!"
+}
+
+if [ "$1" = "--help" -o "$1" = "-h" ]
+then
+    printhelp
+    exit
+fi
+
+if [ "$1" = "--version" ]
+then
+    echo "sataeject 0.1"
+fi
+
+if [ $# -eq 0 ]
+then
+    printhelp
+    exit
+fi
+
+
+verbose=0
+force=0
+unmount=0
+device=null
+
+for i in $@
+do
+    char1=$(expr substr $i 1 1)
+    if [ "$char1" = "-" ]
+    then
+	option=$i
+	if [ "$option" = "-f" -o "$option" = "--force" ]
+	then
+	    force=1
+
+	elif [ "$option" = "-v" -o "$option" = "--verbose" ]
+	then
+	    verbose=1
+
+	elif [ "$option" = "-u" -o "$option" = "--unmount" ]
+	then
+	    unmount=1
+
+	else
+	    echo "Unknown option: $option"
+	    printhelp
+	    exit
+	fi
+    else
+	device=$i
+	break
+    fi
+done
+
+if [ "$device" = "null" ]
+then
+    echo "You have to specify a drive to eject!"
+    printhelp
+    exit
+fi
+
+if [ -b $device ]
+then
+    if [ $verbose -eq 1 ]
+    then
+	echo "Found device $device"
+    fi
+else
+    echo "There is no device $device!"
+    exit
+fi
+
+if [ "$(expr substr $device 6 2)" = "sd" ]
+then
+    name=$(expr substr $device 6 4)
+else
+    echo "This seems not to be a SATA/SCSI/SAS drive!"
+    exit
+fi
+
+if [ "$(expr substr $device 9 1)" != "" ]
+then
+    echo "You have to specify a whole drive and not a partition!"
+    exit
+fi
+
+if [ "$(cat /proc/mounts | grep $device)" != "" ]
+then
+    if [ $unmount -eq 0 -a $force -eq 0 ]
+    then
+	echo "There are partitions still mounted."
+	echo "Use either -u option to automatically unmount or -f to ignore (not recommended)."
+	exit
+    elif [ $unmount -eq 0 -a $force -eq 1 ]
+    then
+	if [ $verbose -eq 1 ]
+	then
+	    echo "There are partitions still mounted. Ignoring."
+	fi
+    elif [ $unmount -eq 1 ]
+    then
+	if [ $verbose -eq 1 ]
+	then
+	    echo "Unmounting mounted partitions..."
+	fi
+	stage1=$(cat /proc/mounts | grep $device)
+	for i in $stage1
+	do
+	    if [ "$(expr substr $i 1 7)" = "/dev/sd" ]
+	    then
+		if [ $verbose -eq 1 ]
+		then
+		    echo "Unmounting $i..."
+		fi
+		umount $i
+	    fi
+	done
+	if [ "$(cat /proc/mounts | grep $device)" != "" ]
+	then
+	    if [ $force -eq 0 ]
+	    then
+	       echo "Could not unmount all partitions. Exiting."
+	       exit
+	    else
+		if [ $verbose -eq 1 ]
+		then
+		    echo "Could not unmount all partitions. Ignoring."
+		fi
+	    fi
+	fi
+    fi
+fi
+
+if [ $verbose -eq 1 ]
+then
+   echo "Ejecting $device..."
+fi
+echo 1 > /sys/class/block/$name/device/delete
+if [ $verbose -eq 1 ]
+then
+    echo "Done."
+fi
