@@ -1,7 +1,21 @@
 #!/bin/bash
 
+#Copyright 2015 Julian Sax
+#This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 printhelp() {
-    echo "sataeject [OPTIONS] DRIVE"
+    echo "$0 [OPTIONS] DRIVE"
     echo "Eject SCSI/SATA/SAS drive for safe remove"
     echo ""
     echo "Options:"
@@ -13,29 +27,33 @@ printhelp() {
     echo "You can not combine options like -fvu (yet)!"
 }
 
+#check if help is needed
 if [ "$1" = "--help" -o "$1" = "-h" ]
 then
     printhelp
     exit
 fi
 
+#check if user wants version
 if [ "$1" = "--version" ]
 then
     echo "sataeject 0.1"
 fi
 
+#no arguments -> print help
 if [ $# -eq 0 ]
 then
     printhelp
     exit
 fi
 
-
+#some vars with standard values
 verbose=0
 force=0
 unmount=0
 device=null
 
+#go through arguments and fill vars
 for i in $@
 do
     char1=$(expr substr $i 1 1)
@@ -65,6 +83,7 @@ do
     fi
 done
 
+#no device specified
 if [ "$device" = "null" ]
 then
     echo "You have to specify a drive to eject!"
@@ -72,6 +91,7 @@ then
     exit
 fi
 
+#check if file is a device
 if [ -b $device ]
 then
     if [ $verbose -eq 1 ]
@@ -83,6 +103,7 @@ else
     exit
 fi
 
+#check if device starts with "sd" (maybe there is a better way to do it)
 if [ "$(expr substr $device 6 2)" = "sd" ]
 then
     name=$(expr substr $device 6 4)
@@ -91,12 +112,14 @@ else
     exit
 fi
 
+#check if file is longer than sdx (here could also be a better way)
 if [ "$(expr substr $device 9 1)" != "" ]
 then
     echo "You have to specify a whole drive and not a partition!"
     exit
 fi
 
+#check for mounted devices and perform according to the provided options
 if [ "$(cat /proc/mounts | grep $device)" != "" ]
 then
     if [ $unmount -eq 0 -a $force -eq 0 ]
@@ -144,6 +167,9 @@ then
     fi
 fi
 
+sync
+
+#finally ejecting the drive. Phew!
 if [ $verbose -eq 1 ]
 then
    echo "Ejecting $device..."
